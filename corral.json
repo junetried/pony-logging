@@ -1,0 +1,12 @@
+{
+  "packages": ["logging", "logging-backend-outstream", "logging-formatter-time"],
+  "deps": [],
+  "info": {
+    "description": "A logging library for Pony.",
+    "homepage": "https://github.com/junetried/pony-logging",
+    "license": "MIT",
+    "documentation_url": "https://strangejune.xyz/archive/pony/logging--index/",
+    "version": "0.1.0",
+    "name": "logging"
+  }
+}
