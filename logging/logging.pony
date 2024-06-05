@@ -310,15 +310,32 @@ class LogSourceFilter
 		end
 
 actor Logging
-	var _backends: Array[LoggingBackend tag] ref = []
+	var _backends: Array[(LoggingBackend tag, {(LogLevel val, LogSource): Bool} val)] ref = []
 
-	be append_backend(backend: LoggingBackend tag) =>
+	be append_backend(backend: LoggingBackend tag, eval: {(LogLevel val, LogSource): Bool} val = {(l, s) => true} val) =>
 		"""
 		Append a single backend to the list of backends to use.
-		"""
-		_backends.push(backend)
 
-	be set_backends(backends: Array[LoggingBackend tag] val) =>
+		The eval argument can be given to avoid calling the backend in cases
+		where it will not have anything to do. How much this helps scales with
+		how many backends you have configured that would've been called
+		otherwise.
+
+		**TODO**: This interface isn't great. This can be used to cut down on
+		the number of calls, but it's at the expense of being just really ugly.
+		It would also be nice to remove the Logging call entirely for cases
+		where it will definitely have nothing to do. Maybe the Logging actor
+		should instead be an immutable class? That's a pretty big change.
+		Backends would still be actors, but cutting out the Logging actor would
+		free its code to run in the same thread that the actor would've been
+		called from. This is at the cost of not being able to change the
+		backends in use on the fly (i.e. after it was created), which I'm not
+		sure is important anyway. Maybe if that's such a big concern, logging
+		users could simply have a behavior to update the logging class in use.
+		"""
+		_backends.push((backend, eval))
+
+	be set_backends(backends: Array[(LoggingBackend tag, {(LogLevel val, LogSource): Bool} val)] val) =>
 		"""
 		Set a new array of backends to use.
 		"""
@@ -329,7 +346,7 @@ actor Logging
 		Set the enabled logging levels recursively for all backends.
 		"""
 		for backend in _backends.values() do
-			backend.set_levels(levels)
+			backend._1.set_levels(levels)
 		end
 
 	be enable_levels(levels: Array[LogLevel val] val) =>
@@ -338,7 +355,7 @@ actor Logging
 		were not already enabled.
 		"""
 		for backend in _backends.values() do
-			backend.enable_levels(levels)
+			backend._1.enable_levels(levels)
 		end
 
 	be disable_levels(levels: Array[LogLevel val] val) =>
@@ -347,7 +364,7 @@ actor Logging
 		were enabled.
 		"""
 		for backend in _backends.values() do
-			backend.disable_levels(levels)
+			backend._1.disable_levels(levels)
 		end
 
 	be set_source_filter(filter: LogSourceFilter val) =>
@@ -355,7 +372,7 @@ actor Logging
 		Set the source filters in use recursively for all backends.
 		"""
 		for backend in _backends.values() do
-			backend.set_source_filter(filter)
+			backend._1.set_source_filter(filter)
 		end
 
 	be include_source(source: LogSource val) =>
@@ -368,7 +385,7 @@ actor Logging
 		explicitly like any other source.
 		"""
 		for backend in _backends.values() do
-			backend.include_source(source)
+			backend._1.include_source(source)
 		end
 
 	be exclude_source(source: LogSource val) =>
@@ -381,7 +398,7 @@ actor Logging
 		explicitly like any other source.
 		"""
 		for backend in _backends.values() do
-			backend.exclude_source(source)
+			backend._1.exclude_source(source)
 		end
 
 	be set_formatter(formatter: LogFormatter val) =>
@@ -389,7 +406,7 @@ actor Logging
 		Set the logging formatter recursively for all backends.
 		"""
 		for backend in _backends.values() do
-			backend.set_formatter(formatter)
+			backend._1.set_formatter(formatter)
 		end
 	
 	be set_formatting_preference(preference: Bool) =>
@@ -405,7 +422,7 @@ actor Logging
 		function.
 		"""
 		for backend in _backends.values() do
-			backend.set_formatting_preference(preference)
+			backend._1.set_formatting_preference(preference)
 		end
 
 	be err(message: String val, source: LogSource) =>
@@ -413,7 +430,9 @@ actor Logging
 		Log a message with the Error level.
 		"""
 		for backend in _backends.values() do
-			backend.log(Error, message, source)
+			if backend._2(Error, source) then
+				backend._1.log(Error, message, source)
+			end
 		end
 
 	be warn(message: String val, source: LogSource) =>
@@ -421,7 +440,9 @@ actor Logging
 		Log a message with the Warn level.
 		"""
 		for backend in _backends.values() do
-			backend.log(Warn, message, source)
+			if backend._2(Warn, source) then
+				backend._1.log(Warn, message, source)
+			end
 		end
 
 	be info(message: String val, source: LogSource) =>
@@ -429,7 +450,9 @@ actor Logging
 		Log a message with the Info level.
 		"""
 		for backend in _backends.values() do
-			backend.log(Info, message, source)
+			if backend._2(Info, source) then
+				backend._1.log(Info, message, source)
+			end
 		end
 
 	be debug(message: String val, source: LogSource) =>
@@ -437,7 +460,9 @@ actor Logging
 		Log a message with the Debug level.
 		"""
 		for backend in _backends.values() do
-			backend.log(Debug, message, source)
+			if backend._2(Debug, source) then
+				backend._1.log(Debug, message, source)
+			end
 		end
 
 	be trace(message: String val, source: LogSource) =>
@@ -445,7 +470,9 @@ actor Logging
 		Log a message with the Trace level.
 		"""
 		for backend in _backends.values() do
-			backend.log(Trace, message, source)
+			if backend._2(Trace, source) then
+				backend._1.log(Trace, message, source)
+			end
 		end
 
 	be log(level: LogLevel val, message: String val, source: LogSource) =>
@@ -453,7 +480,9 @@ actor Logging
 		Log a message with the given level.
 		"""
 		for backend in _backends.values() do
-			backend.log(level, message, source)
+			if backend._2(level, source) then
+				backend._1.log(level, message, source)
+			end
 		end
 
 trait LoggingBackend
